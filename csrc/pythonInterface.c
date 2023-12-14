@@ -151,15 +151,15 @@ MAKE_FUNC_TRANSFORM(8, row, col_ampere, n, int8_t, ROW, COL_AMPERE, false, 8);
 MAKE_FUNC_TRANSFORM(8, col32, row, n, int8_t, COL32, ROW, false, 8);
 MAKE_FUNC_TRANSFORM(32, col32, row, n, int32_t, COL32, ROW, false, 32);
 
-void transform_row2col32(char * A, char *out, int rows, int cols){ transformRowToFormat<COL32, 0>(A, out, rows, cols); }
-void transform_row2col32T(char * A, char *out, int rows, int cols){ transformRowToFormat<COL32, 1>(A, out, rows, cols); }
-void transform_row2turing(char * A, char *out, int rows, int cols){ transformRowToFormat<COL_TURING, 0>(A, out, rows, cols); }
-void transform_row2turingT(char * A, char *out, int rows, int cols){ transformRowToFormat<COL_TURING, 1>(A, out, rows, cols); }
-void transform_row2ampere(char * A, char *out, int rows, int cols){ transformRowToFormat<COL_AMPERE, 0>(A, out, rows, cols); }
-void transform_row2ampereT(char * A, char *out, int rows, int cols){ transformRowToFormat<COL_AMPERE, 1>(A, out, rows, cols); }
+void transform_row2col32(int8_t * A, int8_t *out, int rows, int cols){ transformRowToFormat<COL32, 0>(A, out, rows, cols); }
+void transform_row2col32T(int8_t * A, int8_t *out, int rows, int cols){ transformRowToFormat<COL32, 1>(A, out, rows, cols); }
+void transform_row2turing(int8_t * A, int8_t *out, int rows, int cols){ transformRowToFormat<COL_TURING, 0>(A, out, rows, cols); }
+void transform_row2turingT(int8_t * A, int8_t *out, int rows, int cols){ transformRowToFormat<COL_TURING, 1>(A, out, rows, cols); }
+void transform_row2ampere(int8_t * A, int8_t *out, int rows, int cols){ transformRowToFormat<COL_AMPERE, 0>(A, out, rows, cols); }
+void transform_row2ampereT(int8_t * A, int8_t *out, int rows, int cols){ transformRowToFormat<COL_AMPERE, 1>(A, out, rows, cols); }
 
-void extractOutliers_turing(char * A, int *idx, char *out, int idx_size, int rows, int cols){ extractOutliers<COL_TURING>(A, idx, out, idx_size, rows, cols); }
-void extractOutliers_ampere(char * A, int *idx, char *out, int idx_size, int rows, int cols){ extractOutliers<COL_AMPERE>(A, idx, out, idx_size, rows, cols); }
+void extractOutliers_turing(int8_t * A, int *idx, int8_t *out, int idx_size, int rows, int cols){ extractOutliers<COL_TURING>(A, idx, out, idx_size, rows, cols); }
+void extractOutliers_ampere(int8_t * A, int *idx, int8_t *out, int idx_size, int rows, int cols){ extractOutliers<COL_AMPERE>(A, idx, out, idx_size, rows, cols); }
 
  int igemmlt_turing_32(cublasLtHandle_t ltHandle, int m, int n, int k, const int8_t *A, const int8_t *B, void *C, float *row_scale, int lda, int ldb, int ldc)
 	{ return igemmlt<COL_TURING, 32, 0>(ltHandle, m, n, k, A, B, C, row_scale, lda, ldb, ldc); }
@@ -332,25 +332,25 @@ extern "C"
 	void cget_col_row_stats(half * A, float *rowStats, float *colStats, int *nnz_count_row, float nnz_threshold, int rows, int cols)
 	{ getColRowStats(A, rowStats, colStats, nnz_count_row, nnz_threshold, rows, cols); }
 
-  void cdouble_rowcol_quant(half * A, float *rowStats, float *colStats, char *out_col_normed, char *out_row_normed, int *rowidx, int *colidx, half *val, int *nnz_row_ptr, float threshold, int rows, int cols)
+  void cdouble_rowcol_quant(half * A, float *rowStats, float *colStats, int8_t *out_col_normed, int8_t *out_row_normed, int *rowidx, int *colidx, half *val, int *nnz_row_ptr, float threshold, int rows, int cols)
 	{ doubleRowColQuant(A, rowStats, colStats, out_col_normed, out_row_normed, rowidx, colidx, val, nnz_row_ptr, threshold, rows, cols); }
 
-	void ctransform_row2col32(char * A, char *out, int rows, int cols)
+	void ctransform_row2col32(int8_t * A, int8_t *out, int rows, int cols)
 	{ transform_row2col32(A, out, rows, cols); }
 
-	void ctransform_row2col32T(char * A, char *out, int rows, int cols)
+	void ctransform_row2col32T(int8_t * A, int8_t *out, int rows, int cols)
 	{ transform_row2col32T(A, out, rows, cols); }
 
-	void ctransform_row2turing(char * A, char *out, int rows, int cols)
+	void ctransform_row2turing(int8_t * A, int8_t *out, int rows, int cols)
 	{ transform_row2turing(A, out, rows, cols); }
 
-	void ctransform_row2turingT(char * A, char *out, int rows, int cols)
+	void ctransform_row2turingT(int8_t * A, int8_t *out, int rows, int cols)
 	{ transform_row2turingT(A, out, rows, cols); }
 
-	void ctransform_row2ampere(char * A, char *out, int rows, int cols)
+	void ctransform_row2ampere(int8_t * A, int8_t *out, int rows, int cols)
 	{ transform_row2ampere(A, out, rows, cols); }
 
-	void ctransform_row2ampereT(char * A, char *out, int rows, int cols)
+	void ctransform_row2ampereT(int8_t * A, int8_t *out, int rows, int cols)
 	{ transform_row2ampereT(A, out, rows, cols); }
 
 	void cspmm_coo(ContextCusparse *context, int *A_rowidx, int *A_colidx, half *A_vals, int A_nnz, int A_rows, int A_cols, int B_cols, int ldb, half *B, int ldc, half* C, bool transposed_B)
@@ -362,8 +362,8 @@ extern "C"
 	void cspmm_coo_very_sparse_naive_int8(int *max_count, int *max_idx, int *offset_rowidx, int *rowidx, int *colidx, half *values, signed char *B, half *out, float *dequant_stats, int nnz_rows, int nnz, int rowsA, int rowsB, int colsB)
 	{ spmm_coo_very_sparse_naive_int8(max_count, max_idx, offset_rowidx, rowidx, colidx, values, B, out, dequant_stats, nnz_rows, nnz, rowsA, rowsB, colsB); }
 
-	void cextractOutliers_turing(char * A, int *idx, char *out, int idx_size, int rows, int cols){ extractOutliers_turing(A, idx, out, idx_size, rows, cols); }
-	void cextractOutliers_ampere(char * A, int *idx, char *out, int idx_size, int rows, int cols){ extractOutliers_ampere(A, idx, out, idx_size, rows, cols); }
+	void cextractOutliers_turing(int8_t * A, int *idx, int8_t *out, int idx_size, int rows, int cols){ extractOutliers_turing(A, idx, out, idx_size, rows, cols); }
+	void cextractOutliers_ampere(int8_t * A, int *idx, int8_t *out, int idx_size, int rows, int cols){ extractOutliers_ampere(A, idx, out, idx_size, rows, cols); }
 
 	//void cgemm_host_fp32(int M, int N, int K, float * A,  float* B,  float * out,  int lda, int ldb, int ldc)
 	//{ gemm_host_fp32(M, N, K, A, B, out, lda, ldb, ldc); }

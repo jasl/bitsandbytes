@@ -530,7 +530,7 @@ void getColRowStats(half * A, float *rowStats, float *colStats, int *nnz_count_r
 
 }
 
-void doubleRowColQuant(half * A, float *rowStats, float *colStats, char *out_col_normed, char *out_row_normed, int *rowidx, int *colidx, half *val, int *nnz_block_ptr, float threshold, int rows, int cols)
+void doubleRowColQuant(half * A, float *rowStats, float *colStats, int8_t *out_col_normed, int8_t *out_row_normed, int *rowidx, int *colidx, half *val, int *nnz_block_ptr, float threshold, int rows, int cols)
 {
   int threads = 64;
   int items_per_thread = 4;
@@ -553,7 +553,7 @@ void doubleRowColQuant(half * A, float *rowStats, float *colStats, char *out_col
   CUDA_CHECK_RETURN(cudaPeekAtLastError());
 }
 
-template <int FORMAT, int TRANSPOSE> void transformRowToFormat(char * A, char *out, int rows, int cols)
+template <int FORMAT, int TRANSPOSE> void transformRowToFormat(int8_t * A, int8_t *out, int rows, int cols)
 {
   int threads = 256;
   int items_per_thread = 8;
@@ -660,7 +660,7 @@ template <typename T, int BITS> void spmm_coo_very_sparse_naive(int *max_count, 
 }
 
 
-template <int FORMAT> void extractOutliers(char * A, int *idx, char *out, int idx_size, int rows, int cols)
+template <int FORMAT> void extractOutliers(int8_t * A, int *idx, int8_t *out, int idx_size, int rows, int cols)
 {
   int threads = 256;
   // we load 128 column values per warp
@@ -764,8 +764,8 @@ template void gemm_4bit_inference_naive<float, 32>(int m, int n, int k, float * 
 
 //template void gemm_host<float>(int m, int n, int k, float * A,  float* B,  float * out,  int lda, int ldb, int ldc, int bits);
 template void gemm_host<half>(int m, int n, int k, half * A,  half* B,  half * out,  int lda, int ldb, int ldc, int bits);
-template void extractOutliers<COL_TURING>(char * A, int *idx, char *out, int idx_size, int rows, int cols);
-template void extractOutliers<COL_AMPERE>(char * A, int *idx, char *out, int idx_size, int rows, int cols);
+template void extractOutliers<COL_TURING>(int8_t * A, int *idx, int8_t *out, int idx_size, int rows, int cols);
+template void extractOutliers<COL_AMPERE>(int8_t * A, int *idx, int8_t *out, int idx_size, int rows, int cols);
 
 template void spmm_coo_very_sparse_naive<half, 16>(int *max_count, int *max_idx, int *offset_rowidx, int *rowidx, int *colidx, half *values, half *B, half *out, float *dequant_stats, int nnz_rows, int nnz, int rowsA, int rowsB, int colsB);
 template void spmm_coo_very_sparse_naive<signed char, 8>(int *max_count, int *max_idx, int *offset_rowidx, int *rowidx, int *colidx, half *values, signed char *B, half *out, float *dequant_stats, int nnz_rows, int nnz, int rowsA, int rowsB, int colsB);
@@ -777,12 +777,12 @@ template int igemmlt<COL_AMPERE, 32, 0>(cublasLtHandle_t ltHandle, int m, int n,
 template int igemmlt<COL_AMPERE, 8, 0>(cublasLtHandle_t ltHandle, int m, int n, int k, const int8_t *A, const int8_t *B, void *C, float *row_scale, int lda, int ldb, int ldc);
 template int igemmlt<COL_AMPERE, 8, 1>(cublasLtHandle_t ltHandle, int m, int n, int k, const int8_t *A, const int8_t *B, void *C, float *row_scale, int lda, int ldb, int ldc);
 
-template void transformRowToFormat<COL32, 0>(char * A, char *out, int rows, int cols);
-template void transformRowToFormat<COL32, 1>(char * A, char *out, int rows, int cols);
-template void transformRowToFormat<COL_TURING, 0>(char * A, char *out, int rows, int cols);
-template void transformRowToFormat<COL_TURING, 1>(char * A, char *out, int rows, int cols);
-template void transformRowToFormat<COL_AMPERE, 0>(char * A, char *out, int rows, int cols);
-template void transformRowToFormat<COL_AMPERE, 1>(char * A, char *out, int rows, int cols);
+template void transformRowToFormat<COL32, 0>(int8_t * A, int8_t *out, int rows, int cols);
+template void transformRowToFormat<COL32, 1>(int8_t * A, int8_t *out, int rows, int cols);
+template void transformRowToFormat<COL_TURING, 0>(int8_t * A, int8_t *out, int rows, int cols);
+template void transformRowToFormat<COL_TURING, 1>(int8_t * A, int8_t *out, int rows, int cols);
+template void transformRowToFormat<COL_AMPERE, 0>(int8_t * A, int8_t *out, int rows, int cols);
+template void transformRowToFormat<COL_AMPERE, 1>(int8_t * A, int8_t *out, int rows, int cols);
 
 template void estimateQuantiles(half *A, float *code, float offset, int n);
 template void estimateQuantiles(float *A, float *code, float offset, int n);

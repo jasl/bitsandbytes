@@ -185,16 +185,16 @@ template <typename T, int SRC, int TARGET, bool transpose, int DTYPE> void trans
 void cutlass_igemm(bool transposeA, bool transposeB, int m, int n, int k, void *A, void *B, void *C, int lda, int ldb, int ldc);
 void dequant_mm_int32_fp16(int *A, float *rowStats, float *colStats, half *out, float* newRowStats, float* newcolStats, half* bias, int numRows, int numCols);
 void getColRowStats(half * A, float *rowStats, float *colStats, int *nnz_count_row, float nnz_threshold, int rows, int cols);
-void doubleRowColQuant(half * A, float *rowStats, float *colStats, char *out_col_normed, char *out_row_normed,
+void doubleRowColQuant(half * A, float *rowStats, float *colStats, int8_t *out_col_normed, int8_t *out_row_normed,
                        int *rowidx, int *colidx, half *val, int *nnz_block_ptr, float threshold, int rows, int cols);
 
-template <int FORMAT, int TRANSPOSE> void transformRowToFormat(char * A, char *out, int rows, int cols);
+template <int FORMAT, int TRANSPOSE> void transformRowToFormat(int8_t * A, int8_t *out, int rows, int cols);
 
 void spmm_coo(cusparseHandle_t handle, int *A_rowidx, int *A_colidx, half *A_vals, int A_nnz, int A_rows, int A_cols, int B_cols, int ldb, half *B, int ldc, half* C, bool transposed_B);
 
 template <typename T, int BITS> void spmm_coo_very_sparse_naive(int *max_count, int *max_idx, int *offset_rowidx, int *rowidx, int *colidx, half *values, T *B, half *out, float *dequant_stats, int nnz_rows, int nnz, int rowsA, int rowsB, int colsB);
 
-template <int FORMAT> void extractOutliers(char * A, int *idx, char *out, int idx_size, int rows, int cols);
+template <int FORMAT> void extractOutliers(int8_t * A, int *idx, int8_t *out, int idx_size, int rows, int cols);
 
 void matmul4bite(half *A, unsigned char *B, half*out, int lda, int ldb, int rowsA, int colsA, int colsB);
 

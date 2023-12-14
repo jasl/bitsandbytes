@@ -2409,7 +2409,7 @@ template <int ITEMS_PER_THREAD, int SUBTILE_ROWS, int THREADS>__global__ void kd
 }
 
 
-template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int SPARSE_DECOMP> __global__ void kDoubleRowColQuant(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, char *out_col_normed, char *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols)
+template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int SPARSE_DECOMP> __global__ void kDoubleRowColQuant(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, int8_t *out_col_normed, int8_t *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols)
 {
   // assumes TILE_SIZE == THREADS*ITEMS_PER_THREAD
   // Each thread reads the same column but multiple rows
@@ -2431,7 +2431,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int S
 
   typedef cub::BlockLoad<half, THREADS, ITEMS_PER_THREAD, cub::BLOCK_LOAD_VECTORIZE> LoadHalf;
   __shared__ typename LoadHalf::TempStorage loadhalf;
-  typedef cub::BlockStore<char, THREADS, ITEMS_PER_THREAD, cub::BLOCK_STORE_VECTORIZE> StoreInt8;
+  typedef cub::BlockStore<int8_t, THREADS, ITEMS_PER_THREAD, cub::BLOCK_STORE_VECTORIZE> StoreInt8;
   __shared__ typename StoreInt8::TempStorage storeint8;
 
   __shared__ float smem_row_stats[TILE_ROWS];
@@ -2439,7 +2439,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int S
 
   half local_data[ITEMS_PER_THREAD];
   float local_col_stats[ITEMS_PER_THREAD];
-  char local_quantized_data[ITEMS_PER_THREAD];
+  int8_t local_quantized_data[ITEMS_PER_THREAD];
 
   // 0. Load row stats data into shared memory; load col stat (1 fixed per thread)
   #pragma unroll ITEMS_PER_THREAD
@@ -2489,11 +2489,11 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int S
         }
 				else
 				{
-					local_quantized_data[j] = (char)(rintf(__half2float(local_data[j])*row_stat));
+					local_quantized_data[j] = (int8_t)(rintf(__half2float(local_data[j])*row_stat));
 				}
       }
       else
-        local_quantized_data[j] = (char)(rintf(__half2float(local_data[j])*row_stat));
+        local_quantized_data[j] = (int8_t)(rintf(__half2float(local_data[j])*row_stat));
     }
 
     StoreInt8(storeint8).Store(&(out_row_normed[i]), local_quantized_data, valid_items);
@@ -2504,7 +2504,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int S
     {
       // we already pre-normalized the col/row stat:
       // what this does is float/absmax*127 = int8
-			local_quantized_data[j] = (char)(rintf(__half2float(local_data[j])*local_col_stats[j]));
+			local_quantized_data[j] = (int8_t)(rintf(__half2float(local_data[j])*local_col_stats[j]));
     }
 
     __syncthreads();
@@ -2513,7 +2513,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int S
   }
 }
 
-template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int TRANSPOSE, int FORMAT> __global__ void kTransformRowToFormat(char *__restrict__ const A, char *out, int rows, int cols, int tiledCols, int outRows, int outCols)
+template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int TRANSPOSE, int FORMAT> __global__ void kTransformRowToFormat(int8_t *__restrict__ const A, int8_t *out, int rows, int cols, int tiledCols, int outRows, int outCols)
 {
 
   // 0. Load data into 32*32 shared memory tiles
@@ -2562,9 +2562,9 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int T
   // we load 128 bytes per warp with
   // 32 rows for transposes that fill col32 types
   // so that we can have contiguous stores
-  __shared__ char smem_data[32*33*ITEMS_PER_THREAD];
-  char local_data[ITEMS_PER_THREAD];
-  typedef cub::BlockExchange<char, THREADS, ITEMS_PER_THREAD> BlockExchange;
+  __shared__ int8_t smem_data[32*33*ITEMS_PER_THREAD];
+  int8_t local_data[ITEMS_PER_THREAD];
+  typedef cub::BlockExchange<int8_t, THREADS, ITEMS_PER_THREAD> BlockExchange;
 
   // we load row after row from the base_position
   // Load data row by row
@@ -2658,7 +2658,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int T
                   if((base_col + subrow_loop_row + jrow + warp_id < outRows) && (base_row+warp_lane < rows))
                   {
                     // each row hae 32 columns and is offset by 1 to prevent bank conflict during storage into smem
-                    char data = smem_data[(subrow_loop_row + jrow + warp_id)*33 + warp_lane];
+                    int8_t data = smem_data[(subrow_loop_row + jrow + warp_id)*33 + warp_lane];
 
                     // each 32 columns we have new tile
                     // each tile has size outRows*32 and base_row is done in increments of 32
@@ -2671,7 +2671,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int T
                   if(((base_row+subrow) < rows) && (base_col+(j*32)+warp_lane < outCols))
                   {
                     offset = (base_col/32)*(32*rows);
-                    char data = smem_data[(subrow*32*ITEMS_PER_THREAD) + (j*32) + warp_lane];
+                    int8_t data = smem_data[(subrow*32*ITEMS_PER_THREAD) + (j*32) + warp_lane];
                     out[offset+(base_row+subrow)*32 + ((j)*rows*32)+warp_lane] = data;
                   }
                 }
@@ -2697,7 +2697,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int T
                   if((base_col + subrow_loop_row + jrow + warp_id < outRows) && (base_row+warp_lane < rows))
                   {
                     // each row hae 32 columns and is offset by 1 to prevent bank conflict during storage into smem
-                    char data = smem_data[(subrow_loop_row + jrow + warp_id)*33 + warp_lane];
+                    int8_t data = smem_data[(subrow_loop_row + jrow + warp_id)*33 + warp_lane];
 
                     // each 32 columns we have new tile
                     // each tile has size 8*32 = 256 elements offset
@@ -2732,7 +2732,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int T
                 {
                   if(((base_row+subrow) < rows) && (base_col+(j*32)+warp_lane < outCols))
                   {
-                    char data = smem_data[(subrow*32*ITEMS_PER_THREAD) + (j*32) + warp_lane];
+                    int8_t data = smem_data[(subrow*32*ITEMS_PER_THREAD) + (j*32) + warp_lane];
                     // set offset designates the tile offset among the 8*32 tiles
                     // we first increase rows and then columns. Since we load 128 columns at once
                     // we increase the offset by outRows*32 every 32 columns
@@ -2774,7 +2774,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int T
 										if((base_col + subrow_loop_row + jrow + warp_id < outRows) && (base_row+warp_lane < rows))
 										{
 											// each row hae 32 columns and is offset by 1 to prevent bank conflict during storage into smem
-											char data = smem_data[(subrow_loop_row + jrow + warp_id)*33 + warp_lane];
+											int8_t data = smem_data[(subrow_loop_row + jrow + warp_id)*33 + warp_lane];
 
 											// each 32 columns we have new tile
 											// each tile has size 32*32 = 1024 elements offset
@@ -2813,7 +2813,7 @@ template <int THREADS, int ITEMS_PER_THREAD, int TILE_ROWS, int TILE_COLS, int T
 									{
 										if(((base_row+subrow) < rows) && (base_col+(j*32)+warp_lane < outCols))
 										{
-											char data = smem_data[(subrow*32*ITEMS_PER_THREAD) + (j*32) + warp_lane];
+											int8_t data = smem_data[(subrow*32*ITEMS_PER_THREAD) + (j*32) + warp_lane];
 
 											// set offset designates the tile offset among the 32*32 tiles
 											// we first increase rows and then columns. Since we load 128 columns at once
@@ -2987,7 +2987,7 @@ __global__ void kspmm_coo_very_sparse_naive(int *max_count, int *max_idx, int *o
   }
 }
 
-template <int FORMAT> __global__ void kExtractOutliers(char *A, int *idx, char *out, int idx_size, int rowsA, int colsA, int tiledRowsA, int tiledColsA)
+template <int FORMAT> __global__ void kExtractOutliers(int8_t *A, int *idx, int8_t *out, int idx_size, int rowsA, int colsA, int tiledRowsA, int tiledColsA)
 {
 	int local_colidx = idx[blockIdx.x];
 
@@ -3021,7 +3021,7 @@ template <int FORMAT> __global__ void kExtractOutliers(char *A, int *idx, char *
 
 			offset += tile_offset_rows + tile_offset_cols;
 
-			char val = A[offset];
+			int8_t val = A[offset];
 
 			int out_idx = (row*idx_size) + blockIdx.x;
 			out[out_idx] = val;
@@ -3043,7 +3043,7 @@ template <int FORMAT> __global__ void kExtractOutliers(char *A, int *idx, char *
 			int offset = (((subtile_row_idx%8)/2*4+subtile_row_idx/8)*2+subtile_row_idx%2)*32+subtile_col_idx;
 			offset += tile_offset_cols + tile_offset_rows;
 
-			char val = A[offset];
+			int8_t val = A[offset];
 			int out_idx = (row*idx_size) + blockIdx.x;
 			out[out_idx] = val;
 		}
@@ -3299,15 +3299,15 @@ template <typename T, int BITS, int THREADS> __global__ void gemm_device(int M, 
 }
 
 
-template <typename T> __device__ void printnonzero(T *A, int num_values, const char * strval)
+template <typename T> __device__ void printnonzero(T *A, int num_values, const int8_t * strval)
 {
   for(int i = 0; i < num_values; i++)
     if((float)A[i] != 0.0)
       printf("%s %i %f\n", strval, i, (float)A[i]);
 }
 
-template __device__ void printnonzero<float>(float *A, int num_values, const char*strval);
-template __device__ void printnonzero<half>(half *A, int num_values, const char*strval);
+template __device__ void printnonzero<float>(float *A, int num_values, const int8_t*strval);
+template __device__ void printnonzero<half>(half *A, int num_values, const int8_t*strval);
 
 __device__ static float nf4_data[16] = {-1.0, -0.6961928009986877, -0.5250730514526367, -0.39491748809814453, -0.28444138169288635, -0.18477343022823334, -0.09105003625154495, 0.0, 0.07958029955625534, 0.16093020141124725, 0.24611230194568634, 0.33791524171829224, 0.44070982933044434, 0.5626170039176941, 0.7229568362236023, 1.0};
 template <typename T, int THREADS> __global__ void kgemm_4bit_inference(int M, int N, int K, T * __restrict__ const A, unsigned char *B,  float *absmax, T * out,  int lda, int ldb, int ldc, int blocksize)
@@ -3813,8 +3813,8 @@ template __global__ void kgemm_4bit_inference_naive<half, 128, 16>(int M, int N,
 template __global__ void kgemm_4bit_inference_naive<__nv_bfloat16, 128, 16>(int M, int N, int K, __nv_bfloat16 * __restrict__ const A, unsigned char *B,  float *absmax, const float *datatype, __nv_bfloat16 * out,  int lda, int ldb, int ldc, int blocksize);
 template __global__ void kgemm_4bit_inference_naive<float, 128, 32>(int M, int N, int K, float * __restrict__ const A, unsigned char *B,  float *absmax, const float *datatype, float * out,  int lda, int ldb, int ldc, int blocksize);
 
-template __global__ void kExtractOutliers<COL_TURING>(char *A, int *idx, char *out, int idx_size, int rowsA, int colsA, int tiledRowsA, int tiledColsA);
-template __global__ void kExtractOutliers<COL_AMPERE>(char *A, int *idx, char *out, int idx_size, int rowsA, int colsA, int tiledRowsA, int tiledColsA);
+template __global__ void kExtractOutliers<COL_TURING>(int8_t *A, int *idx, int8_t *out, int idx_size, int rowsA, int colsA, int tiledRowsA, int tiledColsA);
+template __global__ void kExtractOutliers<COL_AMPERE>(int8_t *A, int *idx, int8_t *out, int idx_size, int rowsA, int colsA, int tiledRowsA, int tiledColsA);
 
 template __global__ void kspmm_coo_very_sparse_naive<half, 8, 16>(int *max_count, int *max_idx, int *offset_rowidx, int *rowidx, int *colidx, half *values, half *B, half *out, float *dequant_stats, int nnz, int rowsA, int rowsB, int colsB);
 template __global__ void kspmm_coo_very_sparse_naive<half, 16, 16>(int *max_count, int *max_idx, int *offset_rowidx, int *rowidx, int *colidx, half *values, half *B, half *out, float *dequant_stats, int nnz, int rowsA, int rowsB, int colsB);
@@ -3823,17 +3823,17 @@ template __global__ void kspmm_coo_very_sparse_naive<signed char, 8, 8>(int *max
 template __global__ void kspmm_coo_very_sparse_naive<signed char, 16, 8>(int *max_count, int *max_idx, int *offset_rowidx, int *rowidx, int *colidx, half *values, signed char *B, half *out, float *dequant_stats, int nnz, int rowsA, int rowsB, int colsB);
 template __global__ void kspmm_coo_very_sparse_naive<signed char, 32, 8>(int *max_count, int *max_idx, int *offset_rowidx, int *rowidx, int *colidx, half *values, signed char *B, half *out, float *dequant_stats, int nnz, int rowsA, int rowsB, int colsB);
 
-template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 0, COL32>(char *__restrict__ const A, char *out, int rows, int cols, int tiledCols, int outRows, int outCols);
-template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 1, COL32>(char *__restrict__ const A, char *out, int rows, int cols, int tiledCols, int outRows, int outCols);
-template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 0, COL_TURING>(char *__restrict__ const A, char *out, int rows, int cols, int tiledCols, int outRows, int outCols);
-template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 1, COL_TURING>(char *__restrict__ const A, char *out, int rows, int cols, int tiledCols, int outRows, int outCols);
-template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 0, COL_AMPERE>(char *__restrict__ const A, char *out, int rows, int cols, int tiledCols, int outRows, int outCols);
-template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 1, COL_AMPERE>(char *__restrict__ const A, char *out, int rows, int cols, int tiledCols, int outRows, int outCols);
+template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 0, COL32>(int8_t *__restrict__ const A, int8_t *out, int rows, int cols, int tiledCols, int outRows, int outCols);
+template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 1, COL32>(int8_t *__restrict__ const A, int8_t *out, int rows, int cols, int tiledCols, int outRows, int outCols);
+template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 0, COL_TURING>(int8_t *__restrict__ const A, int8_t *out, int rows, int cols, int tiledCols, int outRows, int outCols);
+template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 1, COL_TURING>(int8_t *__restrict__ const A, int8_t *out, int rows, int cols, int tiledCols, int outRows, int outCols);
+template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 0, COL_AMPERE>(int8_t *__restrict__ const A, int8_t *out, int rows, int cols, int tiledCols, int outRows, int outCols);
+template __global__ void kTransformRowToFormat<256, 8, 32, 32*8, 1, COL_AMPERE>(int8_t *__restrict__ const A, int8_t *out, int rows, int cols, int tiledCols, int outRows, int outCols);
 
 template __global__ void kdequant_mm_int32_fp16<4, 128, 512>(int *__restrict__ const A, float *__restrict__ const rowStats, float *__restrict__ const colStats, half *out, float* newRowStats, float* newcolStats, half * __restrict__ const bias, const int numRows, const int numCols, const int tileCols, const int n);
 
-template __global__ void kDoubleRowColQuant<64, 4, 16, 64*4, 0>(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, char *out_col_normed, char *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols);
-template __global__ void kDoubleRowColQuant<64, 4, 16, 64*4, 1>(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, char *out_col_normed, char *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols);
+template __global__ void kDoubleRowColQuant<64, 4, 16, 64*4, 0>(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, int8_t *out_col_normed, int8_t *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols);
+template __global__ void kDoubleRowColQuant<64, 4, 16, 64*4, 1>(half *__restrict__ const A, float *__restrict__ const rowStats, float * __restrict__ const colStats, int8_t *out_col_normed, int8_t *out_row_normed, int *rowidx, int *colidx, half *val, int * __restrict__ nnz_block_ptr, float threshold, int rows, int cols, int tiledCols);
 
 template __device__ unsigned char dQuantize<0>(float* smem_code, const float rand, float x);
 template __device__ unsigned char dQuantize<1>(float* smem_code, const float rand, float x);
