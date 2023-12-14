@@ -7,10 +7,13 @@
 #include <kernels.cuh>
 #include <cub/device/device_scan.cuh>
 #include <limits>
-#include <BinSearch.h>
 #include <cassert>
+#if !defined(__CUDACC__)
+#include <BinSearch.h>
 #include <common.h>
-
+#else
+namespace BinSearch {}
+#endif
 
 using namespace BinSearch;
 using std::cout;

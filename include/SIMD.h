@@ -28,6 +28,8 @@ FORCE_INLINE int popcnt32(int x32)
 
 #if defined(USE_AVX) || defined(USE_AVX2)
 #include <immintrin.h>
+#elif defined(__aarch64__)
+#include <sse2neon.h>
 #else
 #include <emmintrin.h>
 #ifdef USE_SSE41
